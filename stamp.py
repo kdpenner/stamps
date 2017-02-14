@@ -133,7 +133,9 @@ def outputeps(num_srcs):
         f.hide_ytick_labels()
         f.hide_xaxis_label()
         f.hide_xtick_labels()
- 
+
+      f.tick_labels.set_xformat('ddd.ddd')
+      f.tick_labels.set_yformat('ddd.ddd')
       f.show_grayscale(interpolation = 'none')
 
     if rgbflag:
