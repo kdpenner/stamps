@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 import glob
 from astropy.stats import sigma_clipped_stats
 from photutils import make_source_mask
+from aplpy import image_util
+from numpy import count_nonzero
 
 def cutout(imgs, ra, dec):
 
@@ -57,6 +59,9 @@ def cutout(imgs, ra, dec):
       try:
         cutout = Cutout2D(imgdata, coord, 10.*u.arcsec, wcs = wcs)
       except NoOverlapError:
+        overlapflag = 1
+        
+      if count_nonzero(cutout.data) == 0:
         overlapflag = 1
         
       if overlapflag == 0:
@@ -108,6 +113,9 @@ def outputeps(num_srcs):
       f = aplpy.FITSFigure(img[0], figure = fig, 
       subplot = [marg+(1.-2.*marg)/(len(files)+rgbflag)*imgind, .1,
       (1.-2.*marg)/(len(files)+rgbflag), .8])
+      
+      vmin = None
+      vmax = None
 
       if 'BMAJ' in img[0].header:
         f.add_beam()
@@ -133,10 +141,18 @@ def outputeps(num_srcs):
         f.hide_ytick_labels()
         f.hide_xaxis_label()
         f.hide_xtick_labels()
+        # the following method fails when the cutout dimensions do not
+        # match the dimensions of the radio img
+        # e.g., if the radio source falls on the edge of the hst img
+        masked_img = f._data[~mask]
+        interp = image_util.percentile_function(masked_img)
+        vmin = interp(.25)
+        vmax = interp(97.)
 
       f.tick_labels.set_xformat('ddd.ddd')
       f.tick_labels.set_yformat('ddd.ddd')
-      f.show_grayscale(interpolation = 'none')
+      f.show_grayscale(interpolation = 'none', vmin = vmin,
+      vmax = vmax)
 
     if rgbflag:
       aplpy.make_rgb_image(files[-3:], 'output/'+str(src)+'rgb.eps')
@@ -187,8 +203,6 @@ def main():
 
   ra = cat['col2']*u.degree
   dec = cat['col3']*u.degree
-  ra = ra[0:20]
-  dec = dec[0:20]
   
   cutout(imgs, ra, dec)
 
