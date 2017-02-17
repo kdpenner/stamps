@@ -116,6 +116,8 @@ def outputeps(num_srcs):
       
       vmin = None
       vmax = None
+      pmin = .25
+      pmax = 97.
 
       if 'BMAJ' in img[0].header:
         f.add_beam()
@@ -135,8 +137,8 @@ def outputeps(num_srcs):
           npixels = 5., dilate_size = 11.)
           mean, median, rms = sigma_clipped_stats(img_contour[0].data,
           sigma = 3., mask = mask)
-        f.show_contour(img_contour[0], levels = (10.*rms, 20.*rms,
-        30.*rms), colors = 'red')
+        f.show_contour(img_contour[0], levels = (3.*rms, 5.*rms,
+        10.*rms), colors = 'red')
         f.hide_yaxis_label()
         f.hide_ytick_labels()
         f.hide_xaxis_label()
@@ -144,18 +146,20 @@ def outputeps(num_srcs):
         # the following method fails when the cutout dimensions do not
         # match the dimensions of the radio img
         # e.g., if the radio source falls on the edge of the hst img
-        masked_img = f._data[~mask]
-        interp = image_util.percentile_function(masked_img)
-        vmin = interp(.25)
-        vmax = interp(97.)
+        # masked_img = f._data[~mask]
+        # interp = image_util.percentile_function(masked_img)
+        # vmin = interp(.25)
+        # vmax = interp(97.)
 
       f.tick_labels.set_xformat('ddd.ddd')
       f.tick_labels.set_yformat('ddd.ddd')
       f.show_grayscale(interpolation = 'none', vmin = vmin,
-      vmax = vmax)
+      vmax = vmax, pmin = pmin, pmax = pmax)
 
     if rgbflag:
-      aplpy.make_rgb_image(files[-3:], 'output/'+str(src)+'rgb.eps')
+      aplpy.make_rgb_image(files[-3:], 'output/'+str(src)+'rgb.eps',
+      pmin_r = pmin, pmin_g = pmin, pmin_b = pmin,
+      pmax_r = pmax, pmax_g = pmax, pmax_b = pmax)
       f = aplpy.FITSFigure(files[-1], figure = fig,
       subplot = [marg+(1.-2.*marg)/(len(files)+rgbflag)*len(files), .1,
       (1.-2.*marg)/(len(files)+rgbflag), .8])
