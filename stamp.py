@@ -86,8 +86,20 @@ def cutout(imgs, ra, dec):
         hdu.writeto('output/'+str(i)+'img'+str(j)+'.fits')
     
   outputeps(len(coords))
-    
+
+def sort_src_waves(src_wave):
+  return src_wave[0]
+
 def outputeps(num_srcs):
+
+  filter_waves = {}
+  filter_waves['F435W'] = 0.435
+  filter_waves['F606W'] = 0.606
+  filter_waves['F814W'] = 0.814
+  filter_waves['F105W'] = 1.05
+  filter_waves['F125W'] = 1.25
+  filter_waves['F140W'] = 1.40
+  filter_waves['F160W'] = 1.60
 
   for src in xrange(num_srcs):
   
@@ -98,19 +110,38 @@ def outputeps(num_srcs):
     rms = None
 
     if len(files) > 1:
+
       marg = .06
+
+      imgs = []
+      src_waves = {}
+
+      for fileind, file in enumerate(files):
+        imgs.extend(fits.open(file))
+        if fileind is not 0:
+          src_waves[imgs[-1].header['FILTER']] = \
+          (filter_waves[imgs[-1].header['FILTER']], imgs[-1], file)
+      sorted_src_waves = sorted(src_waves.values(), key = sort_src_waves)
+    
+      sorted_src_waves.insert(0, (0, imgs[0], files[0]))
+
       if len(files) >= 4:
         rgbflag = 1
       elif len(files) < 4:
         rgbflag = 0
-    elif len(files) == 1:
-      marg = .2
-      rgbflag = 0
 
-    for imgind, file in enumerate(files):
-    
-      img = fits.open(file)
-      f = aplpy.FITSFigure(img[0], figure = fig, 
+    elif len(files) == 1:
+
+      marg = .2
+
+      sorted_src_waves = [(0, fits.open(files[0])[0], files[0])]
+
+      rgbflag = 0
+      
+    for imgind, wave in enumerate(sorted_src_waves):
+      
+      img = wave[1]
+      f = aplpy.FITSFigure(img, figure = fig, 
       subplot = [marg+(1.-2.*marg)/(len(files)+rgbflag)*imgind, .1,
       (1.-2.*marg)/(len(files)+rgbflag), .8])
       
@@ -119,25 +150,25 @@ def outputeps(num_srcs):
       pmin = .25
       pmax = 97.
 
-      if 'BMAJ' in img[0].header:
+      if 'BMAJ' in img.header:
         f.add_beam()
-        f.beam.set_major(img[0].header['BMAJ'])
-        f.beam.set_minor(img[0].header['BMIN'])
-        f.beam.set_angle(img[0].header['BPA'])
+        f.beam.set_major(img.header['BMAJ'])
+        f.beam.set_minor(img.header['BMIN'])
+        f.beam.set_angle(img.header['BPA'])
         f.beam.show(corner = 'top left', color = 'white', pad = 4)
 
-      if 'FILTER' in img[0].header:
-        f.add_label(0.2, 0.9, img[0].header['FILTER'], relative = True, 
+      if 'FILTER' in img.header:
+        f.add_label(0.2, 0.9, img.header['FILTER'], relative = True, 
         color = 'white')
 
       if imgind is not 0:
-        img_contour = fits.open(files[0])
+        img_contour = sorted_src_waves[0][1]
         if not rms:
-          mask = make_source_mask(img_contour[0].data, snr = 2.,
+          mask = make_source_mask(img_contour.data, snr = 2.,
           npixels = 5., dilate_size = 11.)
-          mean, median, rms = sigma_clipped_stats(img_contour[0].data,
+          mean, median, rms = sigma_clipped_stats(img_contour.data,
           sigma = 3., mask = mask)
-        f.show_contour(img_contour[0], levels = (3.*rms, 5.*rms,
+        f.show_contour(img_contour, levels = (3.*rms, 5.*rms,
         10.*rms), colors = 'red')
         f.hide_yaxis_label()
         f.hide_ytick_labels()
@@ -157,10 +188,11 @@ def outputeps(num_srcs):
       vmax = vmax, pmin = pmin, pmax = pmax)
 
     if rgbflag:
-      aplpy.make_rgb_image(files[-3:], 'output/'+str(src)+'rgb.eps',
+      just_imgs = [blah[2] for blah in sorted_src_waves]
+      aplpy.make_rgb_image(just_imgs[-3:], 'output/'+str(src)+'rgb.eps',
       pmin_r = pmin, pmin_g = pmin, pmin_b = pmin,
       pmax_r = pmax, pmax_g = pmax, pmax_b = pmax)
-      f = aplpy.FITSFigure(files[-1], figure = fig,
+      f = aplpy.FITSFigure(just_imgs[-1], figure = fig,
       subplot = [marg+(1.-2.*marg)/(len(files)+rgbflag)*len(files), .1,
       (1.-2.*marg)/(len(files)+rgbflag), .8])
       f.hide_yaxis_label()
@@ -207,6 +239,8 @@ def main():
 
   ra = cat['col2']*u.degree
   dec = cat['col3']*u.degree
+  ra = ra[0:10]
+  dec = dec[0:10]
   
   cutout(imgs, ra, dec)
 
