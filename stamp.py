@@ -18,6 +18,7 @@ from astropy.stats import sigma_clipped_stats
 from photutils import make_source_mask
 from aplpy import image_util
 from numpy import count_nonzero
+from astropy.io.fits.hdu.image import PrimaryHDU
 
 def cutout(imgs, ra, dec):
 
@@ -84,6 +85,8 @@ def cutout(imgs, ra, dec):
             print mkdir_err
             sys.exit(1)
         hdu.writeto('output/'+str(i)+'img'+str(j)+'.fits')
+
+    img.close()
     
   outputeps(len(coords))
 
@@ -108,6 +111,8 @@ def outputeps(num_srcs):
     fig = plt.figure(figsize = (7.5*len(files), 7.5))
 
     rms = None
+    
+    counter = 0
 
     if len(files) > 1:
 
@@ -119,11 +124,16 @@ def outputeps(num_srcs):
       for fileind, file in enumerate(files):
         imgs.extend(fits.open(file))
         if fileind is not 0:
-          src_waves[imgs[-1].header['FILTER']] = \
-          (filter_waves[imgs[-1].header['FILTER']], imgs[-1], file)
-      sorted_src_waves = sorted(src_waves.values(), key = sort_src_waves)
+          if imgs[-1].header['FILTER'] in src_waves:
+            src_waves[imgs[-1].header['FILTER']].extend( \
+            [imgs[-1], file])
+          else:
+            src_waves[imgs[-1].header['FILTER']] = \
+            [filter_waves[imgs[-1].header['FILTER']], imgs[-1], file]
+      sorted_src_waves = sorted(src_waves.values(),
+      key = sort_src_waves)
     
-      sorted_src_waves.insert(0, (0, imgs[0], files[0]))
+      sorted_src_waves.insert(0, [0, imgs[0], files[0]])
 
       if len(files) >= 4:
         rgbflag = 1
@@ -134,58 +144,54 @@ def outputeps(num_srcs):
 
       marg = .2
 
-      sorted_src_waves = [(0, fits.open(files[0])[0], files[0])]
+      sorted_src_waves = [[0, fits.open(files[0])[0], files[0]]]
 
       rgbflag = 0
       
     for imgind, wave in enumerate(sorted_src_waves):
       
-      img = wave[1]
-      f = aplpy.FITSFigure(img, figure = fig, 
-      subplot = [marg+(1.-2.*marg)/(len(files)+rgbflag)*imgind, .1,
-      (1.-2.*marg)/(len(files)+rgbflag), .8])
+      find_imgs = [each for each in wave if type(each) is PrimaryHDU]
       
-      vmin = None
-      vmax = None
-      pmin = .25
-      pmax = 97.
+      for img in find_imgs:
+        f = aplpy.FITSFigure(img, figure = fig, 
+        subplot = [marg+(1.-2.*marg)/(len(files)+rgbflag)*counter, .1,
+        (1.-2.*marg)/(len(files)+rgbflag), .8])
+      
+        vmin = None
+        vmax = None
+        pmin = .25
+        pmax = 97.
 
-      if 'BMAJ' in img.header:
-        f.add_beam()
-        f.beam.set_major(img.header['BMAJ'])
-        f.beam.set_minor(img.header['BMIN'])
-        f.beam.set_angle(img.header['BPA'])
-        f.beam.show(corner = 'top left', color = 'white', pad = 4)
+        if 'BMAJ' in img.header:
+          f.add_beam()
+          f.beam.set_major(img.header['BMAJ'])
+          f.beam.set_minor(img.header['BMIN'])
+          f.beam.set_angle(img.header['BPA'])
+          f.beam.show(corner = 'top left', color = 'white', pad = 4)
 
-      if 'FILTER' in img.header:
-        f.add_label(0.2, 0.9, img.header['FILTER'], relative = True, 
-        color = 'white')
+        if 'FILTER' in img.header:
+          f.add_label(0.2, 0.9, img.header['FILTER'], relative = True, 
+          color = 'white')
 
-      if imgind is not 0:
-        img_contour = sorted_src_waves[0][1]
-        if not rms:
-          mask = make_source_mask(img_contour.data, snr = 2.,
-          npixels = 5., dilate_size = 11.)
-          mean, median, rms = sigma_clipped_stats(img_contour.data,
-          sigma = 3., mask = mask)
-        f.show_contour(img_contour, levels = (3.*rms, 5.*rms,
-        10.*rms), colors = 'red')
-        f.hide_yaxis_label()
-        f.hide_ytick_labels()
-        f.hide_xaxis_label()
-        f.hide_xtick_labels()
-        # the following method fails when the cutout dimensions do not
-        # match the dimensions of the radio img
-        # e.g., if the radio source falls on the edge of the hst img
-        # masked_img = f._data[~mask]
-        # interp = image_util.percentile_function(masked_img)
-        # vmin = interp(.25)
-        # vmax = interp(97.)
+        if imgind is not 0:
+          img_contour = sorted_src_waves[0][1]
+          if not rms:
+            mask = make_source_mask(img_contour.data, snr = 2.,
+            npixels = 5., dilate_size = 11.)
+            mean, median, rms = sigma_clipped_stats(img_contour.data,
+            sigma = 3., mask = mask)
+          f.show_contour(img_contour, levels = (3.*rms, 5.*rms,
+          10.*rms), colors = 'red')
+          f.hide_yaxis_label()
+          f.hide_ytick_labels()
+          f.hide_xaxis_label()
+          f.hide_xtick_labels()
 
-      f.tick_labels.set_xformat('ddd.ddd')
-      f.tick_labels.set_yformat('ddd.ddd')
-      f.show_grayscale(interpolation = 'none', vmin = vmin,
-      vmax = vmax, pmin = pmin, pmax = pmax)
+        f.tick_labels.set_xformat('ddd.ddd')
+        f.tick_labels.set_yformat('ddd.ddd')
+        f.show_grayscale(interpolation = 'none', vmin = vmin,
+        vmax = vmax, pmin = pmin, pmax = pmax)
+        counter += 1
 
     if rgbflag:
       just_imgs = [blah[2] for blah in sorted_src_waves]
@@ -239,8 +245,6 @@ def main():
 
   ra = cat['col2']*u.degree
   dec = cat['col3']*u.degree
-  ra = ra[0:10]
-  dec = dec[0:10]
   
   cutout(imgs, ra, dec)
 
