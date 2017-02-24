@@ -87,8 +87,6 @@ def cutout(imgs, ra, dec):
         hdu.writeto('output/'+str(i)+'img'+str(j)+'.fits')
 
     img.close()
-    
-  outputeps(len(coords))
 
 def sort_src_waves(src_wave):
   return src_wave[0]
@@ -150,7 +148,7 @@ def outputeps(num_srcs):
       
     for imgind, wave in enumerate(sorted_src_waves):
       
-      find_imgs = [each for each in wave if type(each) is PrimaryHDU]
+      find_imgs = fits.HDUList([each for each in wave if type(each) is PrimaryHDU])
       
       for img in find_imgs:
         f = aplpy.FITSFigure(img, figure = fig, 
@@ -192,10 +190,18 @@ def outputeps(num_srcs):
         f.show_grayscale(interpolation = 'none', vmin = vmin,
         vmax = vmax, pmin = pmin, pmax = pmax)
         counter += 1
+        del img.data
+        del img
+      
+      find_imgs.close()
+
 
     if rgbflag:
       just_imgs = [blah[2] for blah in sorted_src_waves]
-      aplpy.make_rgb_image(just_imgs[-3:], 'output/'+str(src)+'rgb.eps',
+      just_imgs_rgb = just_imgs[-3:]
+      just_imgs_rgb.reverse()
+      aplpy.make_rgb_image(just_imgs_rgb,
+      'output/'+str(src)+'rgb.eps',
       pmin_r = pmin, pmin_g = pmin, pmin_b = pmin,
       pmax_r = pmax, pmax_g = pmax, pmax_b = pmax)
       f = aplpy.FITSFigure(just_imgs[-1], figure = fig,
@@ -209,6 +215,7 @@ def outputeps(num_srcs):
 
     fig.canvas.draw()
     fig.savefig('output/'+str(src)+'.eps')
+    plt.close(fig)
 
 def main():
 
@@ -247,6 +254,7 @@ def main():
   dec = cat['col3']*u.degree
   
   cutout(imgs, ra, dec)
+  outputeps(len(ra))
 
 
 if __name__ == '__main__':
