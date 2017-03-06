@@ -101,6 +101,14 @@ def outputeps(num_srcs):
   filter_waves['F125W'] = 1.25
   filter_waves['F140W'] = 1.40
   filter_waves['F160W'] = 1.60
+  
+  mkdir_err = ''
+  if not os.path.exists('output/no_counterpart/'):
+    try:
+      os.mkdir('output/no_counterpart/')
+    except OSError as mkdir_err:
+      print mkdir_err
+      sys.exit(1)
 
   for src in xrange(num_srcs):
   
@@ -137,6 +145,8 @@ def outputeps(num_srcs):
         rgbflag = 1
       elif len(files) < 4:
         rgbflag = 0
+        
+      append = ''
 
     elif len(files) == 1:
 
@@ -145,6 +155,8 @@ def outputeps(num_srcs):
       sorted_src_waves = [[0, fits.open(files[0])[0], files[0]]]
 
       rgbflag = 0
+      
+      append = 'no_counterpart/'
       
     for imgind, wave in enumerate(sorted_src_waves):
       
@@ -201,7 +213,7 @@ def outputeps(num_srcs):
       just_imgs_rgb = just_imgs[-3:]
       just_imgs_rgb.reverse()
       aplpy.make_rgb_image(just_imgs_rgb,
-      'output/'+str(src)+'rgb.eps',
+      'output/'+append+str(src)+'rgb.eps',
       pmin_r = pmin, pmin_g = pmin, pmin_b = pmin,
       pmax_r = pmax, pmax_g = pmax, pmax_b = pmax)
       f = aplpy.FITSFigure(just_imgs[-1], figure = fig,
@@ -211,10 +223,10 @@ def outputeps(num_srcs):
       f.hide_ytick_labels()
       f.hide_xaxis_label()
       f.hide_xtick_labels()
-      f.show_rgb('output/'+str(src)+'rgb.eps')
+      f.show_rgb('output/'+append+str(src)+'rgb.eps')
 
     fig.canvas.draw()
-    fig.savefig('output/'+str(src)+'.eps')
+    fig.savefig('output/'+append+str(src)+'.eps')
     plt.close(fig)
 
 def main():
