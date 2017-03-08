@@ -20,7 +20,7 @@ from aplpy import image_util
 from numpy import count_nonzero
 from astropy.io.fits.hdu.image import PrimaryHDU
 
-def cutout(imgs, ra, dec):
+def cutout(imgs, ra, dec, targname):
 
   coords = SkyCoord(ra = ra, dec = dec, frame = 'fk5')
 
@@ -75,6 +75,8 @@ def cutout(imgs, ra, dec):
           header['BPA'] = bpa
         if filter:
           header['FILTER'] = filter
+          
+        header['TARGNAME'] = targname[i]
         
         hdu = fits.PrimaryHDU(header = header, data = cutout.data)
         mkdir_err = ''
@@ -113,16 +115,12 @@ def outputeps(num_srcs):
   for src in xrange(num_srcs):
   
     files = glob.glob('output/'+str(src)+'img*.fits')
-  
-    fig = plt.figure(figsize = (7.5*len(files), 7.5))
 
     rms = None
     
     counter = 0
 
     if len(files) > 1:
-
-      marg = .06
 
       imgs = []
       src_waves = {}
@@ -145,28 +143,35 @@ def outputeps(num_srcs):
         rgbflag = 1
       elif len(files) < 4:
         rgbflag = 0
+
+      marg_y = .15
+      marg_in = 7.5/(1.-2.*marg_y)*marg_y
+      width = 7.5*(len(files)+rgbflag)+2.*marg_in
+      marg_x = marg_in/width
         
       append = ''
 
     elif len(files) == 1:
 
-      marg = .2
+      marg_x = .15
+      marg_y = .15
 
       sorted_src_waves = [[0, fits.open(files[0])[0], files[0]]]
 
       rgbflag = 0
       
       append = 'no_counterpart/'
-      
+    
+    fig = plt.figure(figsize = (7.5*(len(files)+rgbflag)/(1.-2.*marg_x), 7.5/(1.-2.*marg_y)))
+
     for imgind, wave in enumerate(sorted_src_waves):
       
       find_imgs = fits.HDUList([each for each in wave if type(each) is PrimaryHDU])
       
       for img in find_imgs:
         f = aplpy.FITSFigure(img, figure = fig, 
-        subplot = [marg+(1.-2.*marg)/(len(files)+rgbflag)*counter, .1,
-        (1.-2.*marg)/(len(files)+rgbflag), .8])
-      
+        subplot = [marg_x+(1.-2.*marg_x)/(len(files)+rgbflag)*counter, marg_y,
+        (1.-2.*marg_x)/(len(files)+rgbflag), 1.-2.*marg_y])
         vmin = None
         vmax = None
         pmin = .25
@@ -178,11 +183,11 @@ def outputeps(num_srcs):
           f.beam.set_minor(img.header['BMIN'])
           f.beam.set_angle(img.header['BPA'])
           f.beam.show(corner = 'top left', color = 'white', pad = 4)
+          f.set_title(img.header['TARGNAME'])
 
         if 'FILTER' in img.header:
-          f.add_label(0.2, 0.9, img.header['FILTER'], relative = True, 
-          color = 'white')
-
+          f.set_title(img.header['FILTER'])
+          
         if imgind is not 0:
           img_contour = sorted_src_waves[0][1]
           if not rms:
@@ -217,8 +222,8 @@ def outputeps(num_srcs):
       pmin_r = pmin, pmin_g = pmin, pmin_b = pmin,
       pmax_r = pmax, pmax_g = pmax, pmax_b = pmax)
       f = aplpy.FITSFigure(just_imgs[-1], figure = fig,
-      subplot = [marg+(1.-2.*marg)/(len(files)+rgbflag)*len(files), .1,
-      (1.-2.*marg)/(len(files)+rgbflag), .8])
+      subplot = [marg_x+(1.-2.*marg_x)/(len(files)+rgbflag)*len(files), marg_y,
+      (1.-2.*marg_x)/(len(files)+rgbflag), 1.-2.*marg_y])
       f.hide_yaxis_label()
       f.hide_ytick_labels()
       f.hide_xaxis_label()
@@ -226,7 +231,7 @@ def outputeps(num_srcs):
       f.show_rgb('output/'+append+str(src)+'rgb.eps')
 
     fig.canvas.draw()
-    fig.savefig('output/'+append+str(src)+'.eps')
+    fig.savefig('output/'+append+str(src)+'.png')
     plt.close(fig)
 
 def main():
@@ -264,8 +269,9 @@ def main():
 
   ra = cat['col2']*u.degree
   dec = cat['col3']*u.degree
+  targname = cat['col1']
   
-  cutout(imgs, ra, dec)
+  cutout(imgs, ra, dec, targname)
   outputeps(len(ra))
 
 
