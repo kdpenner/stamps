@@ -54,6 +54,12 @@ def cutout(imgs, ra, dec, targname):
       if filter[0] is not 'F':
         filter = img[0].header['FILTER1']
 
+    if set(['CRVAL3', 'CUNIT3']).issubset(set(img[0].header)):
+      blah = img[0].header['CRVAL3']*u.Unit(img[0].header['CUNIT3'])
+      blah = blah.to(u.GHz)
+      filter = "{0:0.2f}".format(blah)+" ({0:0.2f})".format(blah.to(u.cm,
+      equivalencies = u.spectral()))
+
     for i, coord in enumerate(coords):
 
       overlapflag = 0
@@ -128,20 +134,30 @@ def outputeps(num_srcs):
       for fileind, file in enumerate(files):
         imgs.extend(fits.open(file))
         if fileind is not 0:
-          if imgs[-1].header['FILTER'] in src_waves:
-            src_waves[imgs[-1].header['FILTER']].extend( \
-            [imgs[-1], file])
+          if 'FILTER' in imgs[-1].header:
+            if imgs[-1].header['FILTER'] in src_waves:
+              src_waves[imgs[-1].header['FILTER']].extend( \
+              [imgs[-1], file])
+            else:
+              try:
+                src_waves[imgs[-1].header['FILTER']] = \
+                [filter_waves[imgs[-1].header['FILTER']], imgs[-1], file]
+              except KeyError:
+                src_waves['NOTAVAIL'] = [0, imgs[-1], file]
           else:
-            src_waves[imgs[-1].header['FILTER']] = \
-            [filter_waves[imgs[-1].header['FILTER']], imgs[-1], file]
+            src_waves['NOTAVAIL'] = [0, imgs[-1], file]
       sorted_src_waves = sorted(src_waves.values(),
       key = sort_src_waves)
     
       sorted_src_waves.insert(0, [0, imgs[0], files[0]])
 
-      if len(files) >= 4:
+      key_array = src_waves.keys()
+      if 'NOTAVAIL' in key_array:
+        key_array.remove('NOTAVAIL')
+
+      if len(key_array) >= 4:
         rgbflag = 1
-      elif len(files) < 4:
+      elif len(key_array) < 4:
         rgbflag = 0
 
       marg_y = .15
@@ -183,10 +199,10 @@ def outputeps(num_srcs):
           f.beam.set_minor(img.header['BMIN'])
           f.beam.set_angle(img.header['BPA'])
           f.beam.show(corner = 'top left', color = 'white', pad = 4)
-          f.set_title(img.header['TARGNAME'])
-
+          
+        titleadd = ''
         if 'FILTER' in img.header:
-          f.set_title(img.header['FILTER'])
+          titleadd += img.header['FILTER']
           
         if imgind is not 0:
           img_contour = sorted_src_waves[0][1]
@@ -201,6 +217,9 @@ def outputeps(num_srcs):
           f.hide_ytick_labels()
           f.hide_xaxis_label()
           f.hide_xtick_labels()
+          f.set_title(titleadd)
+        else:
+          f.set_title(img.header['TARGNAME']+'\n'+titleadd)
 
         f.tick_labels.set_xformat('ddd.ddd')
         f.tick_labels.set_yformat('ddd.ddd')
@@ -214,7 +233,7 @@ def outputeps(num_srcs):
 
 
     if rgbflag:
-      just_imgs = [blah[2] for blah in sorted_src_waves]
+      just_imgs = [blah[2] for blah in sorted_src_waves if blah[0] is not 0]
       just_imgs_rgb = just_imgs[-3:]
       just_imgs_rgb.reverse()
       aplpy.make_rgb_image(just_imgs_rgb,
@@ -267,9 +286,9 @@ def main():
 
 # radio img will always be first
 
-  ra = cat['col2']*u.degree
-  dec = cat['col3']*u.degree
-  targname = cat['col1']
+  ra = cat['col2'][0:10]*u.degree
+  dec = cat['col3'][0:10]*u.degree
+  targname = cat['col1'][0:10]
   
   cutout(imgs, ra, dec, targname)
   outputeps(len(ra))
