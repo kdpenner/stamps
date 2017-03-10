@@ -16,9 +16,9 @@ import matplotlib.pyplot as plt
 import glob
 from astropy.stats import sigma_clipped_stats
 from photutils import make_source_mask
-from aplpy import image_util
 from numpy import count_nonzero
 from astropy.io.fits.hdu.image import PrimaryHDU
+import pdb
 
 def cutout(imgs, ra, dec, targname):
 
@@ -111,9 +111,9 @@ def outputeps(num_srcs):
   filter_waves['F160W'] = 1.60
   
   mkdir_err = ''
-  if not os.path.exists('output/no_counterpart/'):
+  if not os.path.exists('output/no_hst_counterpart/'):
     try:
-      os.mkdir('output/no_counterpart/')
+      os.mkdir('output/no_hst_counterpart/')
     except OSError as mkdir_err:
       print mkdir_err
       sys.exit(1)
@@ -155,17 +155,20 @@ def outputeps(num_srcs):
       if 'NOTAVAIL' in key_array:
         key_array.remove('NOTAVAIL')
 
-      if len(key_array) >= 4:
+      if len(key_array) >= 3:
         rgbflag = 1
-      elif len(key_array) < 4:
+        append = ''
+      elif len(key_array) < 3 and len(key_array) > 0:
         rgbflag = 0
+        append = ''
+      elif len(key_array) == 0:
+        rgbflag = 0
+        append = 'no_hst_counterpart/'
 
       marg_y = .15
       marg_in = 7.5/(1.-2.*marg_y)*marg_y
       width = 7.5*(len(files)+rgbflag)+2.*marg_in
       marg_x = marg_in/width
-        
-      append = ''
 
     elif len(files) == 1:
 
@@ -176,7 +179,7 @@ def outputeps(num_srcs):
 
       rgbflag = 0
       
-      append = 'no_counterpart/'
+      append = 'no_hst_counterpart/'
     
     fig = plt.figure(figsize = (7.5*(len(files)+rgbflag)/(1.-2.*marg_x), 7.5/(1.-2.*marg_y)))
 
@@ -185,9 +188,11 @@ def outputeps(num_srcs):
       find_imgs = fits.HDUList([each for each in wave if type(each) is PrimaryHDU])
       
       for img in find_imgs:
+
         f = aplpy.FITSFigure(img, figure = fig, 
         subplot = [marg_x+(1.-2.*marg_x)/(len(files)+rgbflag)*counter, marg_y,
         (1.-2.*marg_x)/(len(files)+rgbflag), 1.-2.*marg_y])
+
         vmin = None
         vmax = None
         pmin = .25
@@ -206,6 +211,7 @@ def outputeps(num_srcs):
           
         if imgind is not 0:
           img_contour = sorted_src_waves[0][1]
+          f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
           if not rms:
             mask = make_source_mask(img_contour.data, snr = 2.,
             npixels = 5., dilate_size = 11.)
@@ -220,6 +226,11 @@ def outputeps(num_srcs):
           f.set_title(titleadd)
         else:
           f.set_title(img.header['TARGNAME']+'\n'+titleadd)
+          indcen = len(img.data)/2
+          wcs = WCS(img.header)
+          ra_cen, dec_cen = wcs.all_pix2world(indcen, indcen, 0)
+          f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
+          
 
         f.tick_labels.set_xformat('ddd.ddd')
         f.tick_labels.set_yformat('ddd.ddd')
@@ -243,6 +254,7 @@ def outputeps(num_srcs):
       f = aplpy.FITSFigure(just_imgs[-1], figure = fig,
       subplot = [marg_x+(1.-2.*marg_x)/(len(files)+rgbflag)*len(files), marg_y,
       (1.-2.*marg_x)/(len(files)+rgbflag), 1.-2.*marg_y])
+      f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
       f.hide_yaxis_label()
       f.hide_ytick_labels()
       f.hide_xaxis_label()
@@ -286,9 +298,9 @@ def main():
 
 # radio img will always be first
 
-  ra = cat['col2'][0:10]*u.degree
-  dec = cat['col3'][0:10]*u.degree
-  targname = cat['col1'][0:10]
+  ra = cat['col2'][0:100]*u.degree
+  dec = cat['col3'][0:100]*u.degree
+  targname = cat['col1'][0:100]
   
   cutout(imgs, ra, dec, targname)
   outputeps(len(ra))
