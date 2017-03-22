@@ -165,15 +165,15 @@ def outputeps(num_srcs):
         rgbflag = 0
         append = 'no_hst_counterpart/'
 
-      marg_y = .15
+      marg_y = .2
       marg_in = 7.5/(1.-2.*marg_y)*marg_y
       width = 7.5*(len(files)+rgbflag)+2.*marg_in
       marg_x = marg_in/width
 
     elif len(files) == 1:
 
-      marg_x = .15
-      marg_y = .15
+      marg_x = .2
+      marg_y = .2
 
       sorted_src_waves = [[0, fits.open(files[0])[0], files[0]]]
 
@@ -218,18 +218,20 @@ def outputeps(num_srcs):
             mean, median, rms = sigma_clipped_stats(img_contour.data,
             sigma = 3., mask = mask)
           f.show_contour(img_contour, levels = (3.*rms, 5.*rms,
-          10.*rms), colors = 'red')
+          10.*rms), colors = 'red', linewidths = 3)
           f.hide_yaxis_label()
           f.hide_ytick_labels()
           f.hide_xaxis_label()
           f.hide_xtick_labels()
-          f.set_title(titleadd)
+          f.set_title(titleadd, size = 20)
         else:
-          f.set_title(img.header['TARGNAME']+'\n'+titleadd)
-          indcen = len(img.data)/2
+          f.set_title(img.header['TARGNAME']+'\n'+titleadd, size = 20)
+          indcen = len(img.data)/2.
           wcs = WCS(img.header)
           ra_cen, dec_cen = wcs.all_pix2world(indcen, indcen, 0)
           f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
+          f.axis_labels.set_font(size = 20)
+          f.tick_labels.set_font(size = 20)
           
 
         f.tick_labels.set_xformat('ddd.ddd')
@@ -254,6 +256,9 @@ def outputeps(num_srcs):
       f = aplpy.FITSFigure(just_imgs[-1], figure = fig,
       subplot = [marg_x+(1.-2.*marg_x)/(len(files)+rgbflag)*len(files), marg_y,
       (1.-2.*marg_x)/(len(files)+rgbflag), 1.-2.*marg_y])
+      img_contour = sorted_src_waves[0][1]
+      f.show_contour(img_contour, levels = (3.*rms, 5.*rms,
+      10.*rms), colors = 'red', linewidths = 3)
       f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
       f.hide_yaxis_label()
       f.hide_ytick_labels()
@@ -298,9 +303,9 @@ def main():
 
 # radio img will always be first
 
-  ra = cat['col2'][0:100]*u.degree
-  dec = cat['col3'][0:100]*u.degree
-  targname = cat['col1'][0:100]
+  ra = cat['col2'][0:10]*u.degree
+  dec = cat['col3'][0:10]*u.degree
+  targname = cat['col1'][0:10]
   
   cutout(imgs, ra, dec, targname)
   outputeps(len(ra))
