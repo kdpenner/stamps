@@ -62,14 +62,18 @@ def cutout(imgs, ra, dec, targname):
 
     for i, coord in enumerate(coords):
 
+      cutout = None
       overlapflag = 0
       try:
         cutout = Cutout2D(imgdata, coord, 10.*u.arcsec, wcs = wcs)
       except NoOverlapError:
         overlapflag = 1
-        
-      if count_nonzero(cutout.data) == 0:
+      except ValueError:
         overlapflag = 1
+
+      if cutout:
+        if count_nonzero(cutout.data) == 0:
+          overlapflag = 1
         
       if overlapflag == 0:
       
@@ -143,14 +147,21 @@ def outputeps(num_srcs):
                 src_waves[imgs[-1].header['FILTER']] = \
                 [filter_waves[imgs[-1].header['FILTER']], imgs[-1], file]
               except KeyError:
-                src_waves['NOTAVAIL'] = [0, imgs[-1], file]
+                if 'NOTAVAIL' in src_waves:
+                  src_waves['NOTAVAIL'].extend([0, imgs[-1], file])
+                else:
+                  src_waves['NOTAVAIL'] = [0, imgs[-1], file]
           else:
-            src_waves['NOTAVAIL'] = [0, imgs[-1], file]
+            if 'NOTAVAIL' in src_waves:
+              src_waves['NOTAVAIL'].extend([0, imgs[-1], file])
+            else:
+              src_waves['NOTAVAIL'] = [0, imgs[-1], file]
+
       sorted_src_waves = sorted(src_waves.values(),
       key = sort_src_waves)
     
       sorted_src_waves.insert(0, [0, imgs[0], files[0]])
-
+      
       key_array = src_waves.keys()
       if 'NOTAVAIL' in key_array:
         key_array.remove('NOTAVAIL')
@@ -181,94 +192,96 @@ def outputeps(num_srcs):
       
       append = 'no_hst_counterpart/'
     
-    fig = plt.figure(figsize = (7.5*(len(files)+rgbflag)/(1.-2.*marg_x), 7.5/(1.-2.*marg_y)))
+    if files:
 
-    for imgind, wave in enumerate(sorted_src_waves):
-      
-      find_imgs = fits.HDUList([each for each in wave if type(each) is PrimaryHDU])
-      
-      for img in find_imgs:
+      fig = plt.figure(figsize = (7.5*(len(files)+rgbflag)/(1.-2.*marg_x), 7.5/(1.-2.*marg_y)))
 
-        f = aplpy.FITSFigure(img, figure = fig, 
-        subplot = [marg_x+(1.-2.*marg_x)/(len(files)+rgbflag)*counter, marg_y,
+      for imgind, wave in enumerate(sorted_src_waves):
+      
+        find_imgs = fits.HDUList([each for each in wave if type(each) is PrimaryHDU])
+      
+        for img in find_imgs:
+
+          f = aplpy.FITSFigure(img, figure = fig, 
+          subplot = [marg_x+(1.-2.*marg_x)/(len(files)+rgbflag)*counter, marg_y,
+          (1.-2.*marg_x)/(len(files)+rgbflag), 1.-2.*marg_y])
+
+          vmin = None
+          vmax = None
+          pmin = .25
+          pmax = 97.
+
+          if 'BMAJ' in img.header:
+            f.add_beam()
+            f.beam.set_major(img.header['BMAJ'])
+            f.beam.set_minor(img.header['BMIN'])
+            f.beam.set_angle(img.header['BPA'])
+            f.beam.show(corner = 'top left', color = 'white', pad = 4)
+            
+          titleadd = ''
+          if 'FILTER' in img.header:
+            titleadd += img.header['FILTER']
+            
+          if imgind is not 0:
+            img_contour = sorted_src_waves[0][1]
+            f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
+            if not rms:
+              mask = make_source_mask(img_contour.data, snr = 2.,
+              npixels = 5., dilate_size = 11.)
+              mean, median, rms = sigma_clipped_stats(img_contour.data,
+              sigma = 3., mask = mask)
+            f.show_contour(img_contour, levels = (3.*rms, 5.*rms,
+            10.*rms), colors = 'red', linewidths = 3)
+            f.hide_yaxis_label()
+            f.hide_ytick_labels()
+            f.hide_xaxis_label()
+            f.hide_xtick_labels()
+            f.set_title(titleadd, size = 20)
+          else:
+            f.set_title(img.header['TARGNAME']+'\n'+titleadd, size = 20)
+            indcen = len(img.data)/2.
+            wcs = WCS(img.header)
+            ra_cen, dec_cen = wcs.all_pix2world(indcen, indcen, 0)
+            f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
+            f.axis_labels.set_font(size = 20)
+            f.tick_labels.set_font(size = 20)
+            
+  
+          f.tick_labels.set_xformat('ddd.ddd')
+          f.tick_labels.set_yformat('ddd.ddd')
+          f.show_grayscale(interpolation = 'none', vmin = vmin,
+          vmax = vmax, pmin = pmin, pmax = pmax)
+          counter += 1
+          del img.data
+          del img
+        
+        find_imgs.close()
+  
+  
+      if rgbflag:
+        just_imgs = [blah[2] for blah in sorted_src_waves if blah[0] is not 0]
+        just_imgs_rgb = just_imgs[-3:]
+        just_imgs_rgb.reverse()
+        aplpy.make_rgb_image(just_imgs_rgb,
+        'output/'+append+str(src)+'rgb.eps',
+        pmin_r = pmin, pmin_g = pmin, pmin_b = pmin,
+        pmax_r = pmax, pmax_g = pmax, pmax_b = pmax)
+        f = aplpy.FITSFigure(just_imgs[-1], figure = fig,
+        subplot = [marg_x+(1.-2.*marg_x)/(len(files)+rgbflag)*len(files), marg_y,
         (1.-2.*marg_x)/(len(files)+rgbflag), 1.-2.*marg_y])
-
-        vmin = None
-        vmax = None
-        pmin = .25
-        pmax = 97.
-
-        if 'BMAJ' in img.header:
-          f.add_beam()
-          f.beam.set_major(img.header['BMAJ'])
-          f.beam.set_minor(img.header['BMIN'])
-          f.beam.set_angle(img.header['BPA'])
-          f.beam.show(corner = 'top left', color = 'white', pad = 4)
-          
-        titleadd = ''
-        if 'FILTER' in img.header:
-          titleadd += img.header['FILTER']
-          
-        if imgind is not 0:
-          img_contour = sorted_src_waves[0][1]
-          f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
-          if not rms:
-            mask = make_source_mask(img_contour.data, snr = 2.,
-            npixels = 5., dilate_size = 11.)
-            mean, median, rms = sigma_clipped_stats(img_contour.data,
-            sigma = 3., mask = mask)
-          f.show_contour(img_contour, levels = (3.*rms, 5.*rms,
-          10.*rms), colors = 'red', linewidths = 3)
-          f.hide_yaxis_label()
-          f.hide_ytick_labels()
-          f.hide_xaxis_label()
-          f.hide_xtick_labels()
-          f.set_title(titleadd, size = 20)
-        else:
-          f.set_title(img.header['TARGNAME']+'\n'+titleadd, size = 20)
-          indcen = len(img.data)/2.
-          wcs = WCS(img.header)
-          ra_cen, dec_cen = wcs.all_pix2world(indcen, indcen, 0)
-          f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
-          f.axis_labels.set_font(size = 20)
-          f.tick_labels.set_font(size = 20)
-          
-
-        f.tick_labels.set_xformat('ddd.ddd')
-        f.tick_labels.set_yformat('ddd.ddd')
-        f.show_grayscale(interpolation = 'none', vmin = vmin,
-        vmax = vmax, pmin = pmin, pmax = pmax)
-        counter += 1
-        del img.data
-        del img
-      
-      find_imgs.close()
-
-
-    if rgbflag:
-      just_imgs = [blah[2] for blah in sorted_src_waves if blah[0] is not 0]
-      just_imgs_rgb = just_imgs[-3:]
-      just_imgs_rgb.reverse()
-      aplpy.make_rgb_image(just_imgs_rgb,
-      'output/'+append+str(src)+'rgb.eps',
-      pmin_r = pmin, pmin_g = pmin, pmin_b = pmin,
-      pmax_r = pmax, pmax_g = pmax, pmax_b = pmax)
-      f = aplpy.FITSFigure(just_imgs[-1], figure = fig,
-      subplot = [marg_x+(1.-2.*marg_x)/(len(files)+rgbflag)*len(files), marg_y,
-      (1.-2.*marg_x)/(len(files)+rgbflag), 1.-2.*marg_y])
-      img_contour = sorted_src_waves[0][1]
-      f.show_contour(img_contour, levels = (3.*rms, 5.*rms,
-      10.*rms), colors = 'red', linewidths = 3)
-      f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
-      f.hide_yaxis_label()
-      f.hide_ytick_labels()
-      f.hide_xaxis_label()
-      f.hide_xtick_labels()
-      f.show_rgb('output/'+append+str(src)+'rgb.eps')
-
-    fig.canvas.draw()
-    fig.savefig('output/'+append+str(src)+'.png')
-    plt.close(fig)
+        img_contour = sorted_src_waves[0][1]
+        f.show_contour(img_contour, levels = (3.*rms, 5.*rms,
+        10.*rms), colors = 'red', linewidths = 3)
+        f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
+        f.hide_yaxis_label()
+        f.hide_ytick_labels()
+        f.hide_xaxis_label()
+        f.hide_xtick_labels()
+        f.show_rgb('output/'+append+str(src)+'rgb.eps')
+  
+      fig.canvas.draw()
+      fig.savefig('output/'+append+str(src)+'.png')
+      plt.close(fig)
 
 def main():
 
@@ -297,15 +310,19 @@ def main():
   if args:
     imgfnames = args[1:]
     for imgfname in imgfnames:
-      imgs.append(fits.open(imgfname))
+      try:
+        imgs.append(fits.open(imgfname))
+      except IOError:
+        print 'Error with file name '+imgfname
+        sys.exit(1)
       
   cat = Table.read(catfname, format = 'ascii')
 
 # radio img will always be first
 
-  ra = cat['col2'][0:10]*u.degree
-  dec = cat['col3'][0:10]*u.degree
-  targname = cat['col1'][0:10]
+  ra = cat['col2']*u.degree
+  dec = cat['col3']*u.degree
+  targname = cat['col1']
   
   cutout(imgs, ra, dec, targname)
   outputeps(len(ra))
