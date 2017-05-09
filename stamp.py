@@ -18,6 +18,7 @@ from astropy.stats import sigma_clipped_stats
 from photutils import make_source_mask
 from numpy import count_nonzero
 from astropy.io.fits.hdu.image import PrimaryHDU
+from astropy.wcs.utils import proj_plane_pixel_scales
 import pdb
 
 def cutout(imgs, ra, dec, targname):
@@ -62,18 +63,20 @@ def cutout(imgs, ra, dec, targname):
 
     for i, coord in enumerate(coords):
 
-      cutout = None
+      cutout_sub = None
       overlapflag = 0
       try:
-        cutout = Cutout2D(imgdata, coord, 10.*u.arcsec, wcs = wcs)
+        cutout_sub = Cutout2D(imgdata, coord, 1.*u.arcsec, wcs = wcs)
       except NoOverlapError:
         overlapflag = 1
       except ValueError:
         overlapflag = 1
 
-      if cutout:
-        if count_nonzero(cutout.data) == 0:
+      if cutout_sub:
+        if count_nonzero(cutout_sub.data) == 0:
           overlapflag = 1
+        else:
+          cutout = Cutout2D(imgdata, coord, 10.*u.arcsec, wcs = wcs)
         
       if overlapflag == 0:
       
@@ -103,7 +106,7 @@ def cutout(imgs, ra, dec, targname):
 def sort_src_waves(src_wave):
   return src_wave[0]
 
-def outputeps(num_srcs):
+def outputeps(cluster, num_srcs):
 
   filter_waves = {}
   filter_waves['F435W'] = 0.435
@@ -113,6 +116,14 @@ def outputeps(num_srcs):
   filter_waves['F125W'] = 1.25
   filter_waves['F140W'] = 1.40
   filter_waves['F160W'] = 1.60
+  
+  cluster_pos = {}
+  cluster_pos['macs0416'] = SkyCoord(ra = '04h16m09.9s',
+                                     dec = '-24d03m58s', frame = 'fk5')
+  cluster_pos['macs0717'] = SkyCoord(ra = '07h17m30.9s',
+                                     dec = '37d45m30s', frame = 'fk5')
+  cluster_pos['macs1149'] = SkyCoord(ra = '11h49m35.1s',
+                                     dec = '22d24m11s', frame = 'fk5')
   
   mkdir_err = ''
   if not os.path.exists('output/no_hst_counterpart/'):
@@ -241,7 +252,13 @@ def outputeps(num_srcs):
             f.set_title(img.header['TARGNAME']+'\n'+titleadd, size = 20)
             indcen = len(img.data)/2.
             wcs = WCS(img.header)
-            ra_cen, dec_cen = wcs.all_pix2world(indcen, indcen, 0)
+            arrow_dim_arcsec = indcen/2.*proj_plane_pixel_scales(wcs)[0]
+            ra_cen, dec_cen = wcs.all_pix2world(indcen, indcen, 0, ra_dec_order = True)
+            cen_coord = SkyCoord(ra = ra_cen*u.deg, dec = dec_cen*u.deg, frame = 'fk5')
+            dra, ddec = cen_coord.spherical_offsets_to(cluster_pos[cluster])
+            scaling_d = abs(dra.to(u.deg).value/arrow_dim_arcsec)
+            f.show_arrows(float(ra_cen), float(dec_cen),
+                          dra.to(u.deg).value/scaling_d, ddec.to(u.deg).value/scaling_d)
             f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
             f.axis_labels.set_font(size = 20)
             f.tick_labels.set_font(size = 20)
@@ -288,12 +305,16 @@ def main():
   args = sys.argv[1:]
 
   if not args:
-    print "Usage: --radio_img file --cat catalog [--imgs file1 file2 ...]"
+    print "Usage: [macs0416,macs0717,macs1149] --radio_img file --cat catalog [--imgs file1 file2 ...]"
     sys.exit(1)
     
   if args[0] == '--radio_img':
     radioimgfname = args[1]
     del args[0:2]
+  elif args[0] in ['macs0416', 'macs0717', 'macs1149']:
+    cluster = args[0]
+    radioimgfname = args[2]
+    del args[0:3]
   else:
     print 'Incorrect command line usage, radio img required'
     sys.exit(1)
@@ -322,10 +343,10 @@ def main():
 
   ra = cat['col2']*u.degree
   dec = cat['col3']*u.degree
-  targname = cat['col1']
+  targname = cat['col1'].astype(str)
   
-  cutout(imgs, ra, dec, targname)
-  outputeps(len(ra))
+  cutout(imgs, ra[0:10], dec[0:10], targname[0:10])
+  outputeps(cluster, len(ra[0:10]))
 
 
 if __name__ == '__main__':
