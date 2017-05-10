@@ -252,13 +252,15 @@ def outputeps(cluster, num_srcs):
             f.set_title(img.header['TARGNAME']+'\n'+titleadd, size = 20)
             indcen = len(img.data)/2.
             wcs = WCS(img.header)
-            arrow_dim_arcsec = indcen/2.*proj_plane_pixel_scales(wcs)[0]
             ra_cen, dec_cen = wcs.all_pix2world(indcen, indcen, 0, ra_dec_order = True)
-            cen_coord = SkyCoord(ra = ra_cen*u.deg, dec = dec_cen*u.deg, frame = 'fk5')
-            dra, ddec = cen_coord.spherical_offsets_to(cluster_pos[cluster])
-            scaling_d = abs(dra.to(u.deg).value/arrow_dim_arcsec)
-            f.show_arrows(float(ra_cen), float(dec_cen),
-                          dra.to(u.deg).value/scaling_d, ddec.to(u.deg).value/scaling_d)
+            if cluster:
+              cen_coord = SkyCoord(ra = ra_cen*u.deg, dec = dec_cen*u.deg, frame = 'fk5')
+              dra, ddec = cen_coord.spherical_offsets_to(cluster_pos[cluster])
+              sep = cen_coord.separation(cluster_pos[cluster])
+              arrow_dim_arcsec = indcen/2.*proj_plane_pixel_scales(wcs)[0]
+              scaling_d = abs(sep.to(u.deg).value/arrow_dim_arcsec)
+              f.show_arrows(float(ra_cen), float(dec_cen),
+                            dra.to(u.deg).value/scaling_d, ddec.to(u.deg).value/scaling_d)
             f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
             f.axis_labels.set_font(size = 20)
             f.tick_labels.set_font(size = 20)
@@ -303,6 +305,7 @@ def outputeps(cluster, num_srcs):
 def main():
 
   args = sys.argv[1:]
+  cluster = None
 
   if not args:
     print "Usage: [macs0416,macs0717,macs1149] --radio_img file --cat catalog [--imgs file1 file2 ...]"
@@ -345,8 +348,8 @@ def main():
   dec = cat['col3']*u.degree
   targname = cat['col1'].astype(str)
   
-  cutout(imgs, ra[0:10], dec[0:10], targname[0:10])
-  outputeps(cluster, len(ra[0:10]))
+  cutout(imgs, ra, dec, targname)
+  outputeps(cluster, len(ra))
 
 
 if __name__ == '__main__':
