@@ -17,9 +17,9 @@ import glob
 from astropy.stats import sigma_clipped_stats
 from photutils import make_source_mask
 from numpy import count_nonzero
+from numpy import isfinite
 from astropy.io.fits.hdu.image import PrimaryHDU
 from astropy.wcs.utils import proj_plane_pixel_scales
-import pdb
 
 def cutout(imgs, ra, dec, targname):
 
@@ -54,6 +54,15 @@ def cutout(imgs, ra, dec, targname):
       filter = img[0].header['FILTER2']
       if filter[0] is not 'F':
         filter = img[0].header['FILTER1']
+        
+    if 'CHNLNUM' in img[0].header:
+      if 'TELESCOP' in img[0].header:
+        if img[0].header['TELESCOP'] == 'Spitzer' and img[0].header['CHNLNUM'] == 1:
+          filter = 'IRAC3.6'
+
+    if 'BUNIT' in img[0].header:
+      if img[0].header['BUNIT'] == 'ELECTRONS/S':
+        imgdata *= img[0].header['PHOTFLAM']
 
     if set(['CRVAL3', 'CUNIT3']).issubset(set(img[0].header)):
       blah = img[0].header['CRVAL3']*u.Unit(img[0].header['CUNIT3'])
@@ -74,6 +83,8 @@ def cutout(imgs, ra, dec, targname):
 
       if cutout_sub:
         if count_nonzero(cutout_sub.data) == 0:
+          overlapflag = 1
+        elif count_nonzero(isfinite(cutout_sub.data)) == 0:
           overlapflag = 1
         else:
           cutout = Cutout2D(imgdata, coord, 10.*u.arcsec, wcs = wcs)
@@ -106,6 +117,18 @@ def cutout(imgs, ra, dec, targname):
 def sort_src_waves(src_wave):
   return src_wave[0]
 
+def measure_rms(imgdata):
+
+  mask = make_source_mask(imgdata, snr = 2, npixels = 5,
+  dilate_size = 11)
+
+  mean, median, rms = sigma_clipped_stats(imgdata, sigma = 3.,
+  mask = mask)
+  
+  return(rms)
+
+
+
 def outputeps(cluster, num_srcs):
 
   filter_waves = {}
@@ -116,6 +139,7 @@ def outputeps(cluster, num_srcs):
   filter_waves['F125W'] = 1.25
   filter_waves['F140W'] = 1.40
   filter_waves['F160W'] = 1.60
+  filter_waves['IRAC3.6'] = 3.60
   
   cluster_pos = {}
   cluster_pos['macs0416'] = SkyCoord(ra = '04h16m09.9s',
@@ -176,6 +200,8 @@ def outputeps(cluster, num_srcs):
       key_array = src_waves.keys()
       if 'NOTAVAIL' in key_array:
         key_array.remove('NOTAVAIL')
+      if 'IRAC3.6' in key_array:
+        key_array.remove('IRAC3.6')
 
       if len(key_array) >= 3:
         rgbflag = 1
@@ -237,10 +263,7 @@ def outputeps(cluster, num_srcs):
             img_contour = sorted_src_waves[0][1]
             f.recenter(ra_cen, dec_cen, radius = (5.*u.arcsec).to(u.deg).value)
             if not rms:
-              mask = make_source_mask(img_contour.data, snr = 2.,
-              npixels = 5., dilate_size = 11.)
-              mean, median, rms = sigma_clipped_stats(img_contour.data,
-              sigma = 3., mask = mask)
+              rms = measure_rms(img_contour.data)
             f.show_contour(img_contour, levels = (3.*rms, 5.*rms,
             10.*rms), colors = 'red', linewidths = 3)
             f.hide_yaxis_label()
@@ -278,7 +301,7 @@ def outputeps(cluster, num_srcs):
   
   
       if rgbflag:
-        just_imgs = [blah[2] for blah in sorted_src_waves if blah[0] is not 0]
+        just_imgs = [blah[2] for blah in sorted_src_waves if (blah[0] is not 0 and blah[0] is not 3.6)]
         just_imgs_rgb = just_imgs[-3:]
         just_imgs_rgb.reverse()
         aplpy.make_rgb_image(just_imgs_rgb,
@@ -343,13 +366,18 @@ def main():
   cat = Table.read(catfname, format = 'ascii')
 
 # radio img will always be first
-
-  ra = cat['col2']*u.degree
-  dec = cat['col3']*u.degree
-  targname = cat['col1'].astype(str)
+  if 'col1' in cat.colnames:
+    ra = cat['col2']*u.degree
+    dec = cat['col3']*u.degree
+    targname = cat['col1'].astype(str)
+  elif 'RA' in cat.colnames:
+    ra = cat['RA']*u.degree
+    dec = cat['DEC']*u.degree
+    targname = cat['ID'].astype(str)
   
-  cutout(imgs, ra, dec, targname)
-  outputeps(cluster, len(ra))
+  
+  cutout(imgs, ra[0:10], dec[0:10], targname[0:10])
+  outputeps(cluster, len(ra[0:10]))
 
 
 if __name__ == '__main__':
