@@ -129,7 +129,7 @@ def measure_rms(imgdata):
 
 
 
-def outputeps(cluster, num_srcs):
+def outputeps(cluster, num_srcs, colorbar):
 
   filter_waves = {}
   filter_waves['F435W'] = 0.435
@@ -320,6 +320,10 @@ def outputeps(cluster, num_srcs):
         f.hide_xaxis_label()
         f.hide_xtick_labels()
         f.show_rgb('output/'+append+str(src)+'rgb.eps')
+
+      if colorbar:
+        f.add_colorbar()
+        f.colorbar.show()
   
       fig.canvas.draw()
       fig.savefig('output/'+append+str(src)+'.png')
@@ -329,9 +333,10 @@ def main():
 
   args = sys.argv[1:]
   cluster = None
+  colorbar = None
 
   if not args:
-    print "Usage: [macs0416,macs0717,macs1149] --radio_img file --cat catalog [--imgs file1 file2 ...]"
+    print "Usage: [macs0416,macs0717,macs1149] --radio_img file --cat catalog [--colorbar] [--imgs file1 file2 ...]"
     sys.exit(1)
     
   if args[0] == '--radio_img':
@@ -353,6 +358,12 @@ def main():
     sys.exit(1)
 
   imgs = [fits.open(radioimgfname)]
+
+
+  if args:
+    if args[0] == '--colorbar':
+      colorbar = True
+      del args[0:1]
 
   if args:
     imgfnames = args[1:]
@@ -376,8 +387,8 @@ def main():
     targname = cat['ID'].astype(str)
   
   
-  cutout(imgs, ra[0:10], dec[0:10], targname[0:10])
-  outputeps(cluster, len(ra[0:10]))
+  cutout(imgs, ra[0:100], dec[0:100], targname[0:100])
+  outputeps(cluster, len(ra[0:100]), colorbar = colorbar)
 
 
 if __name__ == '__main__':
