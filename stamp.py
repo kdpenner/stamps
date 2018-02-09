@@ -336,7 +336,7 @@ def main():
   colorbar = None
 
   if not args:
-    print "Usage: [macs0416,macs0717,macs1149] --radio_img file --cat catalog [--colorbar] [--imgs file1 file2 ...]"
+    print "Usage: [macs0416,macs0717,macs1149] --radio_img file --cat catalog [--imgs file1 file2 ...] [--colorbar]"
     sys.exit(1)
     
   if args[0] == '--radio_img':
@@ -361,9 +361,9 @@ def main():
 
 
   if args:
-    if args[0] == '--colorbar':
+    if args[-1] == '--colorbar':
       colorbar = True
-      del args[0:1]
+      del args[-1]
 
   if args:
     imgfnames = args[1:]
@@ -387,8 +387,8 @@ def main():
     targname = cat['ID'].astype(str)
   
   
-  cutout(imgs, ra[0:100], dec[0:100], targname[0:100])
-  outputeps(cluster, len(ra[0:100]), colorbar = colorbar)
+  cutout(imgs, ra, dec, targname)
+  outputeps(cluster, len(ra), colorbar = colorbar)
 
 
 if __name__ == '__main__':
