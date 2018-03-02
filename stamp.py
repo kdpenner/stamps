@@ -20,6 +20,7 @@ from numpy import count_nonzero
 from numpy import isfinite
 from astropy.io.fits.hdu.image import PrimaryHDU
 from astropy.wcs.utils import proj_plane_pixel_scales
+from astropy.units.core import UnitConversionError
 
 def cutout(imgs, ra, dec, targname):
 
@@ -66,9 +67,13 @@ def cutout(imgs, ra, dec, targname):
 
     if set(['CRVAL3', 'CUNIT3']).issubset(set(img[0].header)):
       blah = img[0].header['CRVAL3']*u.Unit(img[0].header['CUNIT3'])
-      blah = blah.to(u.GHz)
-      filter = "{0:0.2f}".format(blah)+" ({0:0.2f})".format(blah.to(u.cm,
-      equivalencies = u.spectral()))
+      try:
+        blah = blah.to(u.GHz)
+      except UnitConversionError:
+        pass
+      else:
+        filter = "{0:0.2f}".format(blah)+" ({0:0.2f})".format(blah.to(u.cm,
+        equivalencies = u.spectral()))
 
     for i, coord in enumerate(coords):
 
@@ -373,7 +378,7 @@ def main():
       except IOError:
         print 'Error with file name '+imgfname
         sys.exit(1)
-      
+            
   cat = Table.read(catfname, format = 'ascii')
 
 # radio img will always be first
