@@ -296,8 +296,9 @@ def outputeps(cluster, num_srcs, colorbar):
   
           f.tick_labels.set_xformat('ddd.ddd')
           f.tick_labels.set_yformat('ddd.ddd')
-          f.show_grayscale(interpolation = 'none', vmin = vmin,
-          vmax = vmax, pmin = pmin, pmax = pmax)
+          
+          f.show_colorscale(interpolation = 'none', vmin = vmin,
+          vmax = vmax, pmin = pmin, pmax = pmax, cmap = 'cubehelix')
           counter += 1
           del img.data
           del img
