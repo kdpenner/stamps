@@ -21,6 +21,7 @@ from numpy import isfinite
 from astropy.io.fits.hdu.image import PrimaryHDU
 from astropy.wcs.utils import proj_plane_pixel_scales
 from astropy.units.core import UnitConversionError
+import numpy as np
 
 def cutout(imgs, ra, dec, targname):
 
@@ -62,7 +63,7 @@ def cutout(imgs, ra, dec, targname):
           filter = 'IRAC3.6'
 
     if 'BUNIT' in img[0].header:
-      if img[0].header['BUNIT'] == 'ELECTRONS/S':
+      if img[0].header['BUNIT'] == 'ELECTRONS/S' and imgdata.dtype.type is not np.int32:
         imgdata *= img[0].header['PHOTFLAM']
 
     if set(['CRVAL3', 'CUNIT3']).issubset(set(img[0].header)):
@@ -233,6 +234,10 @@ def outputeps(cluster, num_srcs, colorbar):
       rgbflag = 0
       
       append = 'no_hst_counterpart/'
+      
+      os.rename(files[0], 
+      os.path.join(os.path.dirname(files[0]), append,
+      os.path.split(files[0])[1]))
     
     if files:
 
@@ -335,6 +340,7 @@ def outputeps(cluster, num_srcs, colorbar):
       fig.savefig('output/'+append+str(src)+'.png')
       plt.close(fig)
 
+
 def main():
 
   args = sys.argv[1:]
@@ -379,6 +385,7 @@ def main():
       except IOError:
         print 'Error with file name '+imgfname
         sys.exit(1)
+
             
   cat = Table.read(catfname, format = 'ascii')
 
@@ -390,7 +397,7 @@ def main():
   elif 'RA' in cat.colnames:
     ra = cat['RA']*u.degree
     dec = cat['DEC']*u.degree
-    targname = cat['ID'].astype(str)
+    targname = cat['NAME'].astype(str)
   
   
   cutout(imgs, ra, dec, targname)
